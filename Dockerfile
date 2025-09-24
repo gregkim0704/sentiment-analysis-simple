@@ -34,4 +34,4 @@ COPY --from=frontend-build /app/frontend/build ./build
 EXPOSE $PORT
 
 # 애플리케이션 실행
-CMD python main.py
+CMD ["python", "main.py"]

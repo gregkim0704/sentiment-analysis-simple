@@ -2,20 +2,9 @@ import React, { useState, useEffect } from 'react';
 
 function App() {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [sentimentData, setSentimentData] = useState({
-    positive: 65,
-    neutral: 25,
-    negative: 10,
-    total_analyses: 0
-  });
-  const [stakeholders, setStakeholders] = useState([]);
   const [analysisText, setAnalysisText] = useState('');
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [recentAnalyses, setRecentAnalyses] = useState([]);
-
-  // API 기본 URL
-  const API_BASE = window.location.origin;
 
   // 실시간 시계
   useEffect(() => {
@@ -25,74 +14,44 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // 데이터 로딩
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 30000); // 30초마다 업데이트
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadData = async () => {
-    try {
-      // 센티멘트 요약 데이터 로드
-      const summaryResponse = await fetch(`${API_BASE}/api/sentiment-summary`);
-      if (summaryResponse.ok) {
-        const summaryData = await summaryResponse.json();
-        setSentimentData(summaryData);
-      }
-
-      // 스테이크홀더 데이터 로드
-      const stakeholdersResponse = await fetch(`${API_BASE}/api/stakeholders`);
-      if (stakeholdersResponse.ok) {
-        const stakeholdersData = await stakeholdersResponse.json();
-        setStakeholders(stakeholdersData.stakeholders);
-      }
-
-      // 최근 분석 결과 로드
-      const recentResponse = await fetch(`${API_BASE}/api/recent-analyses`);
-      if (recentResponse.ok) {
-        const recentData = await recentResponse.json();
-        setRecentAnalyses(recentData.analyses);
-      }
-    } catch (error) {
-      console.error('데이터 로딩 실패:', error);
-    }
-  };
-
-  const analyzeText = async () => {
+  // 간단한 로컬 센티멘트 분석 (API 없이)
+  const analyzeTextLocally = () => {
     if (!analysisText.trim()) {
       alert('분석할 텍스트를 입력해주세요.');
       return;
     }
 
     setIsLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/api/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: analysisText,
-          stakeholder_type: 'general'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setAnalysisResult(result);
-        setAnalysisText('');
-        // 데이터 새로고침
-        setTimeout(loadData, 1000);
-      } else {
-        alert('분석 중 오류가 발생했습니다.');
-      }
-    } catch (error) {
-      console.error('분석 실패:', error);
-      alert('서버 연결에 실패했습니다.');
-    } finally {
-      setIsLoading(false);
+    
+    // 간단한 키워드 기반 분석
+    const text = analysisText.toLowerCase();
+    const positiveWords = ['좋다', '훌륭하다', '만족', '추천', '성공', '좋아요', '최고'];
+    const negativeWords = ['나쁘다', '실망', '문제', '불만', '실패', '싫어요', '최악'];
+    
+    let sentiment = 'neutral';
+    let confidence = 0.5;
+    
+    const positiveCount = positiveWords.filter(word => text.includes(word)).length;
+    const negativeCount = negativeWords.filter(word => text.includes(word)).length;
+    
+    if (positiveCount > negativeCount) {
+      sentiment = 'positive';
+      confidence = 0.7 + (positiveCount * 0.1);
+    } else if (negativeCount > positiveCount) {
+      sentiment = 'negative';
+      confidence = 0.7 + (negativeCount * 0.1);
     }
+    
+    // 1초 후 결과 표시 (로딩 시뮬레이션)
+    setTimeout(() => {
+      setAnalysisResult({
+        text: analysisText,
+        sentiment: sentiment,
+        confidence: Math.min(confidence, 0.95),
+        keywords: [...positiveWords, ...negativeWords].filter(word => text.includes(word)).slice(0, 3)
+      });
+      setIsLoading(false);
+    }, 1000);
   };
 
   const getSentimentColor = (sentiment) => {
@@ -111,19 +70,11 @@ function App() {
     }
   };
 
-  const getTrendIcon = (trend) => {
-    switch(trend) {
-      case 'up': return '📈';
-      case 'down': return '📉';
-      default: return '➡️';
-    }
-  };
-
   return (
     <div style={{ 
       padding: '20px', 
       fontFamily: 'Arial, sans-serif',
-      maxWidth: '1200px',
+      maxWidth: '800px',
       margin: '0 auto',
       backgroundColor: '#f8f9fa',
       minHeight: '100vh'
@@ -141,204 +92,160 @@ function App() {
           📊 센티멘트 분석 플랫폼
         </h1>
         <h2 style={{ color: '#666', fontSize: '1.2rem', marginBottom: '20px' }}>
-          실시간 멀티 스테이크홀더 센티멘트 분석 시스템
+          실시간 텍스트 감정 분석 시스템
         </h2>
         <p style={{ color: '#888', fontSize: '0.9rem' }}>
-          실시간 업데이트: {currentTime.toLocaleString('ko-KR')}
-        </p>
-        <p style={{ color: '#4caf50', fontSize: '0.8rem', marginTop: '10px' }}>
-          ✅ 실제 API 연동 | 총 {sentimentData.total_analyses}건 분석 완료
+          현재 시간: {currentTime.toLocaleString('ko-KR')}
         </p>
       </div>
 
       {/* 텍스트 분석 섹션 */}
       <div style={{ 
         backgroundColor: 'white', 
-        padding: '25px', 
+        padding: '30px', 
         borderRadius: '15px',
         boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
         marginBottom: '30px'
       }}>
         <h3 style={{ color: '#333', marginBottom: '20px' }}>🔍 텍스트 센티멘트 분석</h3>
-        <div style={{ marginBottom: '15px' }}>
+        
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+            분석할 텍스트를 입력하세요:
+          </label>
           <textarea
             value={analysisText}
             onChange={(e) => setAnalysisText(e.target.value)}
-            placeholder="분석할 텍스트를 입력하세요... (예: 이 제품은 정말 좋습니다. 만족스러워요!)"
+            placeholder="예: 이 제품은 정말 좋습니다! 만족스러워요!"
             style={{
               width: '100%',
-              height: '100px',
+              height: '120px',
               padding: '15px',
               border: '2px solid #e0e0e0',
               borderRadius: '10px',
-              fontSize: '14px',
+              fontSize: '16px',
               resize: 'vertical',
-              fontFamily: 'inherit'
+              fontFamily: 'inherit',
+              boxSizing: 'border-box'
             }}
           />
         </div>
+        
         <button
-          onClick={analyzeText}
+          onClick={analyzeTextLocally}
           disabled={isLoading}
           style={{
             backgroundColor: isLoading ? '#ccc' : '#1976d2',
             color: 'white',
             border: 'none',
-            padding: '12px 24px',
+            padding: '15px 30px',
             borderRadius: '8px',
             fontSize: '16px',
             cursor: isLoading ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            width: '100%'
           }}
         >
-          {isLoading ? '분석 중...' : '센티멘트 분석'}
+          {isLoading ? '분석 중...' : '📊 센티멘트 분석 시작'}
         </button>
 
         {/* 분석 결과 */}
         {analysisResult && (
           <div style={{
-            marginTop: '20px',
-            padding: '20px',
+            marginTop: '30px',
+            padding: '25px',
             backgroundColor: '#f8f9fa',
-            borderRadius: '10px',
+            borderRadius: '15px',
             border: `3px solid ${getSentimentColor(analysisResult.sentiment)}`
           }}>
-            <h4 style={{ color: '#333', marginBottom: '15px' }}>📋 분석 결과</h4>
-            <div style={{ marginBottom: '10px' }}>
-              <strong>센티멘트:</strong> 
-              <span style={{ 
-                color: getSentimentColor(analysisResult.sentiment),
-                fontWeight: 'bold',
-                marginLeft: '10px'
+            <h4 style={{ color: '#333', marginBottom: '20px', fontSize: '1.3rem' }}>
+              📋 분석 결과
+            </h4>
+            
+            <div style={{ 
+              display: 'grid', 
+              gap: '15px',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))'
+            }}>
+              <div style={{
+                padding: '15px',
+                backgroundColor: 'white',
+                borderRadius: '10px',
+                textAlign: 'center'
               }}>
-                {getSentimentText(analysisResult.sentiment)} ({Math.round(analysisResult.confidence * 100)}% 확신)
-              </span>
+                <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '5px' }}>
+                  센티멘트
+                </div>
+                <div style={{ 
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  color: getSentimentColor(analysisResult.sentiment)
+                }}>
+                  {getSentimentText(analysisResult.sentiment)}
+                </div>
+              </div>
+              
+              <div style={{
+                padding: '15px',
+                backgroundColor: 'white',
+                borderRadius: '10px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '5px' }}>
+                  신뢰도
+                </div>
+                <div style={{ 
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  color: getSentimentColor(analysisResult.sentiment)
+                }}>
+                  {Math.round(analysisResult.confidence * 100)}%
+                </div>
+              </div>
             </div>
-            <div style={{ marginBottom: '10px' }}>
-              <strong>분석 텍스트:</strong> "{analysisResult.text}"
+            
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '10px' }}>
+                <strong>분석된 텍스트:</strong>
+              </div>
+              <div style={{ 
+                padding: '15px',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                fontStyle: 'italic'
+              }}>
+                "{analysisResult.text}"
+              </div>
             </div>
+            
             {analysisResult.keywords.length > 0 && (
-              <div>
-                <strong>주요 키워드:</strong> 
-                {analysisResult.keywords.map((keyword, index) => (
-                  <span key={index} style={{
-                    backgroundColor: getSentimentColor(analysisResult.sentiment),
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    marginLeft: '5px'
-                  }}>
-                    {keyword}
-                  </span>
-                ))}
+              <div style={{ marginTop: '20px' }}>
+                <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '10px' }}>
+                  <strong>감지된 키워드:</strong>
+                </div>
+                <div>
+                  {analysisResult.keywords.map((keyword, index) => (
+                    <span key={index} style={{
+                      backgroundColor: getSentimentColor(analysisResult.sentiment),
+                      color: 'white',
+                      padding: '6px 12px',
+                      borderRadius: '20px',
+                      fontSize: '14px',
+                      marginRight: '8px',
+                      marginBottom: '8px',
+                      display: 'inline-block'
+                    }}>
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* 대시보드 그리드 */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-        gap: '20px',
-        marginBottom: '30px'
-      }}>
-        {/* 전체 센티멘트 */}
-        <div style={{ 
-          backgroundColor: 'white', 
-          padding: '25px', 
-          borderRadius: '15px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ color: '#333', marginBottom: '20px' }}>📈 전체 센티멘트</h3>
-          <div style={{ marginBottom: '15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span>긍정적</span>
-              <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{sentimentData.positive}%</span>
-            </div>
-            <div style={{ 
-              backgroundColor: '#e0e0e0', 
-              height: '8px', 
-              borderRadius: '4px',
-              overflow: 'hidden'
-            }}>
-              <div style={{ 
-                backgroundColor: '#4caf50', 
-                height: '100%', 
-                width: `${sentimentData.positive}%`,
-                transition: 'width 0.3s ease'
-              }}></div>
-            </div>
-          </div>
-          <div style={{ marginBottom: '15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span>중립적</span>
-              <span style={{ color: '#ff9800', fontWeight: 'bold' }}>{sentimentData.neutral}%</span>
-            </div>
-            <div style={{ 
-              backgroundColor: '#e0e0e0', 
-              height: '8px', 
-              borderRadius: '4px',
-              overflow: 'hidden'
-            }}>
-              <div style={{ 
-                backgroundColor: '#ff9800', 
-                height: '100%', 
-                width: `${sentimentData.neutral}%`,
-                transition: 'width 0.3s ease'
-              }}></div>
-            </div>
-          </div>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span>부정적</span>
-              <span style={{ color: '#f44336', fontWeight: 'bold' }}>{sentimentData.negative}%</span>
-            </div>
-            <div style={{ 
-              backgroundColor: '#e0e0e0', 
-              height: '8px', 
-              borderRadius: '4px',
-              overflow: 'hidden'
-            }}>
-              <div style={{ 
-                backgroundColor: '#f44336', 
-                height: '100%', 
-                width: `${sentimentData.negative}%`,
-                transition: 'width 0.3s ease'
-              }}></div>
-            </div>
-          </div>
-        </div>
-
-        {/* 기술 스택 */}
-        <div style={{ 
-          backgroundColor: 'white', 
-          padding: '25px', 
-          borderRadius: '15px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ color: '#333', marginBottom: '20px' }}>🛠️ 기술 스택</h3>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>프론트엔드:</strong> React + JavaScript
-          </div>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>백엔드:</strong> FastAPI + Python
-          </div>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>배포:</strong> Railway 클라우드
-          </div>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>AI/ML:</strong> 한국어 센티멘트 분석
-          </div>
-          <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e8f5e8', borderRadius: '5px' }}>
-            <small style={{ color: '#2e7d32' }}>✅ 실시간 API 연동 완료</small>
-          </div>
-        </div>
-      </div>
-
-      {/* 스테이크홀더 분석 */}
+      {/* 사용 예시 */}
       <div style={{ 
         backgroundColor: 'white', 
         padding: '25px', 
@@ -346,83 +253,24 @@ function App() {
         boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
         marginBottom: '30px'
       }}>
-        <h3 style={{ color: '#333', marginBottom: '20px' }}>👥 스테이크홀더별 센티멘트 (실시간)</h3>
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-          gap: '15px'
-        }}>
-          {stakeholders.map((stakeholder, index) => (
-            <div key={index} style={{ 
-              padding: '15px', 
-              border: `2px solid ${getSentimentColor(stakeholder.sentiment)}`,
-              borderRadius: '10px',
-              textAlign: 'center',
-              backgroundColor: `${getSentimentColor(stakeholder.sentiment)}10`
-            }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                {stakeholder.name} {getTrendIcon(stakeholder.trend)}
-              </div>
-              <div style={{ 
-                fontSize: '1.5rem', 
-                fontWeight: 'bold',
-                color: getSentimentColor(stakeholder.sentiment)
-              }}>
-                {stakeholder.score}
-              </div>
-              <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '5px' }}>
-                센티멘트 점수
-              </div>
-              <div style={{ fontSize: '0.7rem', color: '#888' }}>
-                최근 언급: {stakeholder.recent_mentions}건
-              </div>
-            </div>
-          ))}
+        <h3 style={{ color: '#333', marginBottom: '20px' }}>💡 사용 예시</h3>
+        <div style={{ display: 'grid', gap: '15px' }}>
+          <div style={{ padding: '15px', backgroundColor: '#e8f5e8', borderRadius: '8px' }}>
+            <strong style={{ color: '#2e7d32' }}>긍정적 예시:</strong><br/>
+            "이 제품은 정말 좋습니다! 추천해요!"
+          </div>
+          <div style={{ padding: '15px', backgroundColor: '#fff3e0', borderRadius: '8px' }}>
+            <strong style={{ color: '#f57c00' }}>중립적 예시:</strong><br/>
+            "보통입니다. 평균적인 수준이에요."
+          </div>
+          <div style={{ padding: '15px', backgroundColor: '#ffebee', borderRadius: '8px' }}>
+            <strong style={{ color: '#d32f2f' }}>부정적 예시:</strong><br/>
+            "서비스가 별로네요. 실망스럽습니다."
+          </div>
         </div>
       </div>
 
-      {/* 최근 분석 결과 */}
-      {recentAnalyses.length > 0 && (
-        <div style={{ 
-          backgroundColor: 'white', 
-          padding: '25px', 
-          borderRadius: '15px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-          marginBottom: '30px'
-        }}>
-          <h3 style={{ color: '#333', marginBottom: '20px' }}>📝 최근 분석 결과</h3>
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {recentAnalyses.slice().reverse().map((analysis, index) => (
-              <div key={index} style={{
-                padding: '10px',
-                marginBottom: '10px',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '8px',
-                borderLeft: `4px solid ${getSentimentColor(analysis.result.sentiment)}`
-              }}>
-                <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '5px' }}>
-                  {new Date(analysis.timestamp * 1000).toLocaleString('ko-KR')}
-                </div>
-                <div style={{ marginBottom: '5px' }}>
-                  <strong>텍스트:</strong> "{analysis.result.text}"
-                </div>
-                <div>
-                  <strong>결과:</strong> 
-                  <span style={{ 
-                    color: getSentimentColor(analysis.result.sentiment),
-                    fontWeight: 'bold',
-                    marginLeft: '5px'
-                  }}>
-                    {getSentimentText(analysis.result.sentiment)} ({Math.round(analysis.result.confidence * 100)}%)
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 배포 성공 메시지 */}
+      {/* 기술 정보 */}
       <div style={{ 
         backgroundColor: '#e8f5e8', 
         padding: '25px', 
@@ -430,20 +278,21 @@ function App() {
         border: '2px solid #4caf50',
         textAlign: 'center'
       }}>
-        <h3 style={{ color: '#2e7d32', marginBottom: '10px' }}>🚀 실제 기능 구현 완료!</h3>
+        <h3 style={{ color: '#2e7d32', marginBottom: '15px' }}>🚀 배포 성공!</h3>
         <p style={{ color: '#2e7d32', marginBottom: '15px' }}>
-          풀스택 센티멘트 분석 플랫폼이 실제 API와 함께 배포되었습니다.
+          센티멘트 분석 플랫폼이 Railway에 성공적으로 배포되었습니다.
         </p>
         <div style={{ 
           display: 'flex', 
           justifyContent: 'center', 
           gap: '20px',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap',
+          fontSize: '0.9rem'
         }}>
-          <div style={{ color: '#2e7d32' }}>✅ 실시간 텍스트 분석</div>
-          <div style={{ color: '#2e7d32' }}>✅ 한국어 키워드 인식</div>
-          <div style={{ color: '#2e7d32' }}>✅ 스테이크홀더 추적</div>
-          <div style={{ color: '#2e7d32' }}>✅ 분석 히스토리</div>
+          <div style={{ color: '#2e7d32' }}>✅ React 프론트엔드</div>
+          <div style={{ color: '#2e7d32' }}>✅ 로컬 텍스트 분석</div>
+          <div style={{ color: '#2e7d32' }}>✅ 반응형 디자인</div>
+          <div style={{ color: '#2e7d32' }}>✅ 실시간 결과</div>
         </div>
       </div>
     </div>
