@@ -1,37 +1,26 @@
-# 멀티 스테이지 빌드: 프론트엔드 + 백엔드 통합
+# 가장 간단한 React 앱 배포
+FROM node:18-alpine
 
-# Stage 1: 프론트엔드 빌드
-FROM node:18-alpine as frontend-build
-WORKDIR /app/frontend
-COPY package*.json ./
-RUN npm install
-COPY src/ ./src/
-COPY public/ ./public/
-RUN npm run build
-
-# Stage 2: 백엔드 + 프론트엔드 서빙
-FROM python:3.11-slim
-
-# 시스템 의존성 설치
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# 작업 디렉토리 설정
 WORKDIR /app
 
-# Python 의존성 설치
-COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# package.json 복사
+COPY package*.json ./
 
-# 백엔드 코드 복사
-COPY backend/ ./
+# 의존성 설치
+RUN npm install
 
-# 프론트엔드 빌드 결과물 복사
-COPY --from=frontend-build /app/frontend/build ./build
+# 소스 코드 복사
+COPY public/ ./public/
+COPY src/ ./src/
 
-# 포트 노출
+# 빌드
+RUN npm run build
+
+# serve 설치 및 실행
+RUN npm install -g serve
+
+# 포트 설정
 EXPOSE $PORT
 
-# 애플리케이션 실행
-CMD ["python", "main.py"]
+# 앱 실행
+CMD ["sh", "-c", "serve -s build -l $PORT"]
